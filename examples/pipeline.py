@@ -1,9 +1,10 @@
 # assuming you have downloaded some data
 from datetime import datetime
+from collections import namedtuple
 from src.checker import check_missing
 from src.formatter import convert_format
+from src.column_namer import add_column_names
 from src.pipeline import Pipeline
-from collections import namedtuple
 
 opt = {
   "base_path": "./data/spot/monthly/klines/",
@@ -21,9 +22,9 @@ pipeline = Pipeline([
   # ("download", download, {}),
   ("check", check_missing, {}),
   ("format", convert_format, {'format': 'parquet'}),
-  # ("header", add_header, {'header': ('open_time', 'open', 'high', 'low', 'close', 'volume')}),
+  ("add column names", add_column_names, {'columns': ('open_time', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_vol', 'trades', 'taker_base', 'taker_quote', 'ignore')}),
   # ("fix-timestamp", fix_timestamp, {"columns": ('open_time', 'close_time'), "unit": 's'})
 ], opt)
 
 for item in checklist:
-  pipeline.run(item);
+  pipeline.run(item)
