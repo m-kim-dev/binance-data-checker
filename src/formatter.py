@@ -9,11 +9,11 @@ def _convert_format(pair, interval, format, datapath, **kwargs):
     print("from: ", csv_pattern)
     duckdb.sql(f"COPY(SELECT * FROM read_csv_auto('{csv_pattern}')) to '{parquet_path}'(FORMAT parquet);")
     print("to:", parquet_path)
-    return
+    return {'datafile': parquet_path}
   raise ValueError("no such format: ", format)
 
 def convert_format(opts):
-  _convert_format(**opts)
-  return opts
+  output = _convert_format(**opts)
+  return opts | output
 
 
