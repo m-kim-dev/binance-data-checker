@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-def check_missing(pair, interval, start_date, end_date, base_path):
+def _check_missing(pair, interval, start_date, end_date, base_path, **kwargs):
   folder = os.path.join(base_path, pair, interval)
   date = start_date
   missing = []
@@ -18,10 +18,15 @@ def check_missing(pair, interval, start_date, end_date, base_path):
       date = datetime(date.year, date.month + 1, 1)
 
   if missing:
+    raise Exception("Missing files")
     print(f"{pair}-{interval}: Missing files:")
     for f in missing:
       print(f)
   else:
     print(f"{pair}-{interval}: {start_date} ~ {end_date}: All files present!")
+  return {'datapath': folder}
 
 
+def check_missing(opts):
+  output = _check_missing(**opts)
+  return opts | output
