@@ -1,0 +1,16 @@
+[project]
+name = "binance-data-checker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.13.3",
+    "duckdb>=1.5.0",
+    "pyyaml>=6.0.3",
+    "tabulate>=0.10.0",
+]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

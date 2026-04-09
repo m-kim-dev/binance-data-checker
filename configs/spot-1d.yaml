@@ -1,0 +1,13 @@
+asset: spot
+data_type: klines
+interval: 1d
+symbols:
+  - BTCUSDT
+  - ETHUSDT
+  - ARBUSDT
+  - OPUSDT
+  - SOLUSDT
+start_date: 2024-01-01
+end_date: 2026-04-06
+destination_dir: ./data
+
