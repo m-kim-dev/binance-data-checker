@@ -2,6 +2,16 @@
 Say, you have downloaded some historical market data using [binance-bulk-downloader](https://github.com/aoki-h-jp/binance-bulk-downloader).
 This package lets you check if there are missing files in the range.
 
+## Status
+
+Early-stage local research tool. APIs, schemas, and workflows may change.
+
+This project is for research and educational purposes only. It is not financial
+advice. Trading involves risk. Use at your own risk.
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
 
 # Features
 * Check missing files in a date range 
