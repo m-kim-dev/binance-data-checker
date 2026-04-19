@@ -1,0 +1,1198 @@
+openapi: 3.1.0
+info:
+  title: Binance Algorithmic Trading UI API
+  version: 0.1.0
+  description: >
+    API contract for a FastAPI service serving DuckDB-backed Binance candles to
+    TradingView Lightweight Charts, plus strategy, backtest, and trading objects.
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development
+tags:
+  - name: Health
+  - name: MarketData
+  - name: Indicators
+  - name: Strategies
+  - name: Backtests
+  - name: Trading
+paths:
+  /health:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Check service and database health
+      responses:
+        "200":
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /markets:
+    get:
+      tags: [MarketData]
+      operationId: listMarkets
+      summary: List supported market datasets
+      responses:
+        "200":
+          description: Market datasets
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Market"
+  /symbols:
+    get:
+      tags: [MarketData]
+      operationId: listSymbols
+      summary: List symbols available in DuckDB
+      responses:
+        "200":
+          description: Available symbols
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SymbolSummary"
+              examples:
+                default:
+                  value:
+                    items:
+                      - symbol: BTCUSDT
+                        intervals: [1d]
+                      - symbol: ETHUSDT
+                        intervals: [1d]
+                      - symbol: SOLUSDT
+                        intervals: [1d]
+                      - symbol: ARBUSDT
+                        intervals: [1d]
+                      - symbol: OPUSDT
+                        intervals: [1d]
+  /symbols/{symbol}:
+    get:
+      tags: [MarketData]
+      operationId: getSymbol
+      summary: Get symbol metadata and available intervals
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+      responses:
+        "200":
+          description: Symbol metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SymbolDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /candles:
+    get:
+      tags: [MarketData]
+      operationId: getCandles
+      summary: Get OHLCV candles for a chart
+      parameters:
+        - $ref: "#/components/parameters/SymbolQuery"
+        - $ref: "#/components/parameters/IntervalQuery"
+        - name: from
+          in: query
+          description: Inclusive lower bound as Unix seconds.
+          schema:
+            type: integer
+            minimum: 0
+        - name: to
+          in: query
+          description: Exclusive upper bound as Unix seconds.
+          schema:
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 500
+            minimum: 1
+            maximum: 5000
+        - name: cursor
+          in: query
+          schema:
+            type: string
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+        - name: fields
+          in: query
+          description: Optional comma-separated candle fields.
+          schema:
+            type: string
+            example: time,open,high,low,close,volume
+      responses:
+        "200":
+          description: Candle page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CandlePage"
+              examples:
+                default:
+                  value:
+                    symbol: BTCUSDT
+                    interval: 1d
+                    timezone: UTC
+                    items:
+                      - time: 1711929600
+                        open: 71333.98
+                        high: 71388.0
+                        low: 68154.0
+                        close: 69702.0
+                        volume: 34912.42
+                      - time: 1712016000
+                        open: 69702.0
+                        high: 71358.0
+                        low: 69409.0
+                        close: 65463.99
+                        volume: 42108.31
+                      - time: 1712102400
+                        open: 65464.0
+                        high: 66944.0
+                        low: 64600.0
+                        close: 65963.28
+                        volume: 31842.19
+                      - time: 1712188800
+                        open: 65963.28
+                        high: 69299.0
+                        low: 65058.0
+                        close: 68487.79
+                        volume: 40144.12
+                      - time: 1712275200
+                        open: 68487.8
+                        high: 68790.0
+                        low: 66098.0
+                        close: 67820.62
+                        volume: 29021.73
+                      - time: 1712361600
+                        open: 67820.62
+                        high: 69696.0
+                        low: 67445.0
+                        close: 68896.0
+                        volume: 25233.81
+                      - time: 1712448000
+                        open: 68896.0
+                        high: 70288.0
+                        low: 68820.0
+                        close: 69360.39
+                        volume: 21176.55
+                      - time: 1712534400
+                        open: 69360.39
+                        high: 72750.0
+                        low: 69092.0
+                        close: 71620.0
+                        volume: 36788.04
+                    page:
+                      limit: 500
+                      next_cursor: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /candles/latest:
+    get:
+      tags: [MarketData]
+      operationId: getLatestCandle
+      summary: Get the latest candle for a symbol and interval
+      parameters:
+        - $ref: "#/components/parameters/SymbolQuery"
+        - $ref: "#/components/parameters/IntervalQuery"
+      responses:
+        "200":
+          description: Latest candle
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [symbol, interval, item]
+                properties:
+                  symbol:
+                    type: string
+                  interval:
+                    type: string
+                  item:
+                    $ref: "#/components/schemas/Candle"
+              examples:
+                default:
+                  value:
+                    symbol: BTCUSDT
+                    interval: 1d
+                    item:
+                      time: 1712534400
+                      open: 69360.39
+                      high: 72750.0
+                      low: 69092.0
+                      close: 71620.0
+                      volume: 36788.04
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /ratios:
+    get:
+      tags: [MarketData]
+      operationId: getRatio
+      summary: Get ratio OHLC candles for a long-short pair
+      parameters:
+        - name: base_symbol
+          in: query
+          required: true
+          description: Numerator symbol, commonly the long leg.
+          schema:
+            type: string
+            pattern: "^[A-Z0-9]{2,20}$"
+          example: BTCUSDT
+        - name: quote_symbol
+          in: query
+          required: true
+          description: Denominator symbol, commonly the short leg.
+          schema:
+            type: string
+            pattern: "^[A-Z0-9]{2,20}$"
+          example: ETHUSDT
+        - $ref: "#/components/parameters/IntervalQuery"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 500
+            minimum: 1
+            maximum: 5000
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+      responses:
+        "200":
+          description: Ratio page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RatioPage"
+              examples:
+                default:
+                  value:
+                    base_symbol: BTCUSDT
+                    quote_symbol: ETHUSDT
+                    interval: 1d
+                    timezone: UTC
+                    items:
+                      - time: 1711929600
+                        open: 19.6304
+                        high: 19.6304
+                        low: 19.1821
+                        close: 19.1821
+                        base_close: 69702.0
+                        quote_close: 3633.68
+                      - time: 1712016000
+                        open: 19.1821
+                        high: 19.1821
+                        low: 18.5108
+                        close: 18.5108
+                        base_close: 65463.99
+                        quote_close: 3536.47
+                    page:
+                      limit: 500
+                      next_cursor: null
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /symbols/{symbol}/intervals/{interval}/indicators:
+    get:
+      tags: [Indicators]
+      operationId: listIndicatorSeries
+      summary: List computed indicator series available for a chart
+      parameters:
+        - $ref: "#/components/parameters/Symbol"
+        - $ref: "#/components/parameters/Interval"
+      responses:
+        "200":
+          description: Indicator series metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/IndicatorSeries"
+  /indicators/preview:
+    post:
+      tags: [Indicators]
+      operationId: previewIndicator
+      summary: Compute an ad hoc indicator preview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IndicatorPreviewRequest"
+      responses:
+        "200":
+          description: Indicator points
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IndicatorPreviewResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /strategies:
+    get:
+      tags: [Strategies]
+      operationId: listStrategies
+      summary: List registered strategies
+      responses:
+        "200":
+          description: Strategies
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Strategy"
+              examples:
+                default:
+                  value:
+                    items:
+                      - id: ma_cross
+                        name: Moving Average Cross
+                        description: Fast and slow moving-average crossover.
+                        parameters:
+                          fast_length: 20
+                          slow_length: 50
+                      - id: breakout
+                        name: Range Breakout
+                        description: Breakout above the recent high with volatility filter.
+                        parameters:
+                          lookback: 30
+                          atr_length: 14
+  /strategies/{strategy_id}/signals:
+    get:
+      tags: [Strategies]
+      operationId: getStrategySignals
+      summary: Get strategy signals as chart markers
+      parameters:
+        - $ref: "#/components/parameters/StrategyId"
+        - $ref: "#/components/parameters/SymbolQuery"
+        - $ref: "#/components/parameters/IntervalQuery"
+        - $ref: "#/components/parameters/From"
+        - $ref: "#/components/parameters/To"
+      responses:
+        "200":
+          description: Chart markers
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarkerPage"
+              examples:
+                default:
+                  value:
+                    items:
+                      - time: 1712102400
+                        position: belowBar
+                        color: "#0f8b8d"
+                        shape: arrowUp
+                        text: Long
+                      - time: 1712361600
+                        position: aboveBar
+                        color: "#c2410c"
+                        shape: arrowDown
+                        text: Exit
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /backtests:
+    post:
+      tags: [Backtests]
+      operationId: createBacktest
+      summary: Create a backtest job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBacktestRequest"
+      responses:
+        "202":
+          description: Backtest accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Backtest"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+  /backtests/{backtest_id}:
+    get:
+      tags: [Backtests]
+      operationId: getBacktest
+      summary: Get backtest status and metrics
+      parameters:
+        - $ref: "#/components/parameters/BacktestId"
+      responses:
+        "200":
+          description: Backtest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Backtest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /backtests/{backtest_id}/equity:
+    get:
+      tags: [Backtests]
+      operationId: getBacktestEquity
+      summary: Get a backtest equity curve
+      parameters:
+        - $ref: "#/components/parameters/BacktestId"
+      responses:
+        "200":
+          description: Equity curve
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LineSeriesPage"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /backtests/{backtest_id}/trades:
+    get:
+      tags: [Backtests]
+      operationId: getBacktestTrades
+      summary: Get backtest trades
+      parameters:
+        - $ref: "#/components/parameters/BacktestId"
+      responses:
+        "200":
+          description: Backtest trades
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Trade"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /accounts:
+    get:
+      tags: [Trading]
+      operationId: listAccounts
+      summary: List trading accounts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Accounts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Account"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /accounts/{account_id}/positions:
+    get:
+      tags: [Trading]
+      operationId: listPositions
+      summary: List account positions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccountId"
+      responses:
+        "200":
+          description: Positions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Position"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /orders:
+    get:
+      tags: [Trading]
+      operationId: listOrders
+      summary: List orders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AccountIdQuery"
+        - $ref: "#/components/parameters/SymbolQuery"
+      responses:
+        "200":
+          description: Orders
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [Trading]
+      operationId: createOrder
+      summary: Create a paper or live order
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "201":
+          description: Created order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /orders/{order_id}:
+    delete:
+      tags: [Trading]
+      operationId: cancelOrder
+      summary: Cancel an open order
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/OrderId"
+      responses:
+        "200":
+          description: Cancelled order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Symbol:
+      name: symbol
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Z0-9]{2,20}$"
+      example: BTCUSDT
+    SymbolQuery:
+      name: symbol
+      in: query
+      required: true
+      schema:
+        type: string
+        pattern: "^[A-Z0-9]{2,20}$"
+      example: BTCUSDT
+    Interval:
+      name: interval
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Interval"
+    IntervalQuery:
+      name: interval
+      in: query
+      required: true
+      schema:
+        $ref: "#/components/schemas/Interval"
+    From:
+      name: from
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+    To:
+      name: to
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+    StrategyId:
+      name: strategy_id
+      in: path
+      required: true
+      schema:
+        type: string
+    BacktestId:
+      name: backtest_id
+      in: path
+      required: true
+      schema:
+        type: string
+    AccountId:
+      name: account_id
+      in: path
+      required: true
+      schema:
+        type: string
+    AccountIdQuery:
+      name: account_id
+      in: query
+      schema:
+        type: string
+    OrderId:
+      name: order_id
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Invalid request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Not allowed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: State conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, database]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        database:
+          type: object
+          required: [path, connected, readonly]
+          properties:
+            path:
+              type: string
+              example: file.db
+            connected:
+              type: boolean
+            readonly:
+              type: boolean
+    Market:
+      type: object
+      required: [id, exchange, market_type]
+      properties:
+        id:
+          type: string
+          example: binance_spot
+        exchange:
+          type: string
+          example: binance
+        market_type:
+          type: string
+          enum: [spot, futures]
+          example: spot
+    Interval:
+      type: string
+      enum: [1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M]
+      example: 1d
+    SymbolSummary:
+      type: object
+      required: [symbol, intervals]
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Interval"
+    SymbolDetail:
+      type: object
+      required: [symbol, intervals]
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        base_asset:
+          type: string
+          example: BTC
+        quote_asset:
+          type: string
+          example: USDT
+        intervals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SymbolIntervalCoverage"
+    SymbolIntervalCoverage:
+      type: object
+      required: [interval, first_time, last_time, count]
+      properties:
+        interval:
+          $ref: "#/components/schemas/Interval"
+        first_time:
+          type: integer
+          description: Unix seconds.
+        last_time:
+          type: integer
+          description: Unix seconds.
+        count:
+          type: integer
+          minimum: 0
+    Candle:
+      type: object
+      required: [time, open, high, low, close, volume]
+      properties:
+        time:
+          type: integer
+          description: Unix seconds for Lightweight Charts.
+          minimum: 0
+        open:
+          type: number
+        high:
+          type: number
+        low:
+          type: number
+        close:
+          type: number
+        volume:
+          type: number
+        quote_asset_volume:
+          type: number
+        number_of_trades:
+          type: integer
+        taker_buy_base_volume:
+          type: number
+        taker_buy_quote_volume:
+          type: number
+    PageInfo:
+      type: object
+      required: [limit]
+      properties:
+        limit:
+          type: integer
+        next_cursor:
+          type: [string, "null"]
+    CandlePage:
+      type: object
+      required: [symbol, interval, timezone, items, page]
+      properties:
+        symbol:
+          type: string
+        interval:
+          $ref: "#/components/schemas/Interval"
+        timezone:
+          type: string
+          example: UTC
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candle"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+    RatioCandle:
+      type: object
+      required: [time, open, high, low, close, base_close, quote_close]
+      properties:
+        time:
+          type: integer
+          description: Unix seconds for Lightweight Charts.
+          minimum: 0
+        open:
+          type: number
+          description: base open divided by quote open.
+        high:
+          type: number
+          description: Greater of ratio open and ratio close.
+        low:
+          type: number
+          description: Lesser of ratio open and ratio close.
+        close:
+          type: number
+          description: base_close divided by quote_close.
+        base_close:
+          type: number
+        quote_close:
+          type: number
+    RatioPage:
+      type: object
+      required: [base_symbol, quote_symbol, interval, timezone, items, page]
+      properties:
+        base_symbol:
+          type: string
+          example: BTCUSDT
+        quote_symbol:
+          type: string
+          example: ETHUSDT
+        interval:
+          $ref: "#/components/schemas/Interval"
+        timezone:
+          type: string
+          example: UTC
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RatioCandle"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+    IndicatorSeries:
+      type: object
+      required: [id, name, kind, style]
+      properties:
+        id:
+          type: string
+          example: sma_20
+        name:
+          type: string
+          example: SMA 20
+        kind:
+          type: string
+          enum: [line, histogram, area]
+        style:
+          type: object
+          additionalProperties: true
+    IndicatorPreviewRequest:
+      type: object
+      required: [symbol, interval, indicator, params]
+      properties:
+        symbol:
+          type: string
+          example: BTCUSDT
+        interval:
+          $ref: "#/components/schemas/Interval"
+        indicator:
+          type: string
+          example: sma
+        params:
+          type: object
+          additionalProperties: true
+          example:
+            length: 20
+        from:
+          type: integer
+          minimum: 0
+        to:
+          type: integer
+          minimum: 0
+    IndicatorPreviewResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinePoint"
+    LinePoint:
+      type: object
+      required: [time, value]
+      properties:
+        time:
+          type: integer
+          minimum: 0
+        value:
+          type: number
+    LineSeriesPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinePoint"
+    Strategy:
+      type: object
+      required: [id, name, parameters]
+      properties:
+        id:
+          type: string
+          example: ma_cross
+        name:
+          type: string
+          example: Moving Average Cross
+        description:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+    Marker:
+      type: object
+      required: [time, position, color, shape]
+      properties:
+        time:
+          type: integer
+          minimum: 0
+        position:
+          type: string
+          enum: [aboveBar, belowBar, inBar]
+        color:
+          type: string
+          example: "#0ea5e9"
+        shape:
+          type: string
+          enum: [arrowUp, arrowDown, circle, square]
+        text:
+          type: string
+    MarkerPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Marker"
+    CreateBacktestRequest:
+      type: object
+      required: [strategy_id, symbol, interval, from, to, initial_capital]
+      properties:
+        strategy_id:
+          type: string
+        symbol:
+          type: string
+        interval:
+          $ref: "#/components/schemas/Interval"
+        from:
+          type: integer
+          minimum: 0
+        to:
+          type: integer
+          minimum: 0
+        initial_capital:
+          type: number
+          exclusiveMinimum: 0
+        fee_bps:
+          type: number
+          default: 0
+        slippage_bps:
+          type: number
+          default: 0
+        parameters:
+          type: object
+          additionalProperties: true
+    Backtest:
+      type: object
+      required: [id, status, strategy_id, symbol, interval]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, running, succeeded, failed]
+        strategy_id:
+          type: string
+        symbol:
+          type: string
+        interval:
+          $ref: "#/components/schemas/Interval"
+        metrics:
+          $ref: "#/components/schemas/BacktestMetrics"
+        links:
+          type: object
+          additionalProperties:
+            type: string
+    BacktestMetrics:
+      type: object
+      properties:
+        total_return_pct:
+          type: number
+        max_drawdown_pct:
+          type: number
+        sharpe:
+          type: number
+        win_rate_pct:
+          type: number
+        trade_count:
+          type: integer
+    Trade:
+      type: object
+      required: [id, symbol, side, quantity, entry_time, entry_price]
+      properties:
+        id:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        quantity:
+          type: number
+        entry_time:
+          type: integer
+        entry_price:
+          type: number
+        exit_time:
+          type: [integer, "null"]
+        exit_price:
+          type: [number, "null"]
+        pnl:
+          type: [number, "null"]
+    Account:
+      type: object
+      required: [id, mode, base_currency, equity]
+      properties:
+        id:
+          type: string
+        mode:
+          type: string
+          enum: [paper, live]
+        base_currency:
+          type: string
+          example: USDT
+        equity:
+          type: number
+    Position:
+      type: object
+      required: [symbol, quantity, average_price, unrealized_pnl]
+      properties:
+        symbol:
+          type: string
+        quantity:
+          type: number
+        average_price:
+          type: number
+        unrealized_pnl:
+          type: number
+    CreateOrderRequest:
+      type: object
+      required: [account_id, symbol, side, type, quantity]
+      properties:
+        account_id:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        type:
+          type: string
+          enum: [market, limit, stop_limit]
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+        limit_price:
+          type: number
+          exclusiveMinimum: 0
+        stop_price:
+          type: number
+          exclusiveMinimum: 0
+        time_in_force:
+          type: string
+          enum: [GTC, IOC, FOK]
+          default: GTC
+    Order:
+      type: object
+      required: [id, account_id, symbol, side, type, quantity, status, created_at]
+      properties:
+        id:
+          type: string
+        account_id:
+          type: string
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        type:
+          type: string
+          enum: [market, limit, stop_limit]
+        quantity:
+          type: number
+        status:
+          type: string
+          enum: [new, partially_filled, filled, cancelled, rejected]
+        limit_price:
+          type: [number, "null"]
+        stop_price:
+          type: [number, "null"]
+        created_at:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
