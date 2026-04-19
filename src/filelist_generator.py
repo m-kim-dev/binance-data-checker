@@ -1,3 +1,5 @@
+from src.data_inserter import ensure_candle_table
+
 MISSING_DAYS_MACRO_SQL = """ -- sql
 create or replace temp macro missing_days(sym, iv, start_d, end_d) as table ( 
 with actual as (
@@ -24,9 +26,15 @@ with mcnt as (
 """
 
 def build_datelist(con, cfg, freq):
+    if freq not in {"daily", "monthly"}:
+        raise ValueError(f"no such option: {freq}")
+    if not cfg.symbols:
+        raise ValueError("build_datelist requires cfg.symbols")
+
     dl_files = {}
     dl_files[freq] = {}
     # dl_files = {"monthly": {}, "daily": {}}
+    ensure_candle_table(con)
     con.execute(MISSING_DAYS_MACRO_SQL)
     for symbol in cfg.symbols:
         dl_files[freq][symbol] = {}
@@ -34,10 +42,7 @@ def build_datelist(con, cfg, freq):
             res = con.execute(MISSING_MONTHS_SQL, [symbol, cfg.interval, cfg.start_date, cfg.end_date]).fetchall()
         elif freq == "daily":
             res = con.execute(MISSING_DAYS_SQL, [symbol, cfg.interval, cfg.start_date, cfg.end_date]).fetchall()
-        else:
-            raise ValueError("no such option: ", freq)
         dl_files[freq][symbol][cfg.interval] = res
     return dl_files
-
 
 

@@ -1,6 +1,15 @@
+from dataclasses import dataclass
+from pathlib import Path
 from zipfile import ZipFile
 
 from src.paths import data_path, Config
+
+
+@dataclass(frozen=True)
+class InsertSummary:
+    symbols: int = 0
+    zip_files: int = 0
+    csv_files: int = 0
 
 NORMALIZE_SECOND_MACRO_SQL = """-- sql
 create or replace macro time_in_second(t) as
@@ -65,14 +74,40 @@ create table if not exists binance_candles (
 """
 
 
-def insert_from_zip(con, cfg, freq):
+def safe_extract_zip(zip_path, destination):
+    destination = destination.resolve()
+    with ZipFile(zip_path, "r") as zf:
+        for member in zf.infolist():
+            member_path = Path(member.filename)
+            if member_path.is_absolute() or ".." in member_path.parts:
+                raise ValueError(f"Unsafe zip member path in {zip_path}: {member.filename}")
+            target = (destination / member_path).resolve()
+            if destination not in target.parents and target != destination:
+                raise ValueError(f"Unsafe zip member path in {zip_path}: {member.filename}")
+        zf.extractall(destination)
+
+
+def ensure_candle_table(con) -> None:
+    con.execute(NORMALIZE_SECOND_MACRO_SQL)
+    con.execute(CREATE_TABLE_SQL).fetchall()
+
+
+def insert_from_zip(con, cfg, freq) -> InsertSummary:
+    if not cfg.symbols:
+        return InsertSummary()
+
+    ensure_candle_table(con)
+    zip_count = 0
+    csv_count = 0
     for symbol in cfg.symbols:
         dpath = data_path(cfg, symbol, freq)
         for zip_path in dpath.glob("*.zip"):
-            with ZipFile(zip_path, "r") as zf:
-                zf.extractall(dpath)
-        con.execute(NORMALIZE_SECOND_MACRO_SQL)
-        con.execute(CREATE_TABLE_SQL).fetchall()
+            safe_extract_zip(zip_path, dpath)
+            zip_count += 1
+        csv_files = list(dpath.glob("*.csv"))
+        csv_count += len(csv_files)
+        if not csv_files:
+            continue
         params = [symbol, cfg.interval, str(dpath / "*.csv")]
         con.execute(LOAD_CSV_TO_DB_SQL, params).fetchall()
-
+    return InsertSummary(symbols=len(cfg.symbols), zip_files=zip_count, csv_files=csv_count)
