@@ -1,0 +1,15 @@
+asset: spot
+data_type: klines
+interval: 1d
+symbol_source: tradable
+quote_asset: USDT
+require_market_order: true
+margin: none
+require_borrowable:
+start_date: 2024-01-01
+end_date: 2026-04-06
+destination_dir: ./data
+db_path: file.db
+batch_size: 25
+download_concurrency: 10
+missing_frequency: monthly
